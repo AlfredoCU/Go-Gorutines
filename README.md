@@ -1,9 +1,9 @@
 # Go-Gorutines
 
-# Objetivo
+## Objetivo
 
 Hacer uso de la concurrencia en Go con las Goroutines y Channels.
 
-# Descripción
+## Descripción
 
 Desarrollar un administrador de procesos en Golang.
