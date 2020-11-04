@@ -1,16 +1,29 @@
 package main
 
 import (
+	"bufio"
 	"fmt"
+	"os"
+	"strconv"
 	"time"
 )
 
 func main() {
 	var (
-		opc string
-		id int64 = -1
+		opc = ""
 		condition = true
-		task = make(chan Process)
+		flag = make(chan bool)
+		scan = bufio.NewScanner(os.Stdin)
+
+		processId uint64
+		newProcess *Process
+	 	processIdCreate uint64
+	 	processIdDelete string
+
+		process []*Process
+		processAdmin = &ProcessAdmin {
+			ProcessAdmin: process,
+		}
 	)
 
 	for exit := true; exit; exit = condition {
@@ -18,25 +31,38 @@ func main() {
 		fmt.Println("[1] Add Process")
 		fmt.Println("[2] Show Process")
 		fmt.Println("[3] Delete Process")
-		fmt.Println("[0] Exit System")
+		fmt.Println("[4] Exit System")
 		fmt.Print("-Option: ")
-		fmt.Scan(&opc)
+		scan.Scan()
+		opc = scan.Text()
 
 		switch opc {
 			case "1":
-				id = id + 1
-				go addProcess(uint64(id), task)
-				fmt.Print("\n-Add process #", uint64(id), "\n\n")
-				go showProcess(task, false)
+				newProcess = NewProcess(processIdCreate)
+				processAdmin.AddProcess(newProcess)
+				processIdCreate += 1
+				go newProcess.Start()
+				fmt.Print("\n-Add process #", processIdCreate, "\n\n")
 				break
 			case "2":
-				showProcess(task, true)
+				if processAdmin.ProcessLength != 0 {
+					go Concurrently(processAdmin, flag)
+					scan.Scan()
+					flag <- true
+				}
 				break
 			case "3":
-				//go deleteProcess(1, task)
+				fmt.Print("\n-Enter the process ID to remove: ")
+				scan.Scan()
+				processIdDelete = scan.Text()
+				processId, _ = strconv.ParseUint(processIdDelete, 10, 64)
+				if processAdmin.KillProcess(processId) {
+					fmt.Print("-Process",processId,"removed successfully.\n\n")
+				}
+				processId = 0
 				break
-			case "0":
-				exited()
+			case "4":
+				processAdmin.exited()
 				condition = false
 				break
 			default:
@@ -45,51 +71,91 @@ func main() {
 	}
 }
 
-// Process struct
-type Process struct {
-	Id uint64
-	Task uint64
-}
-
-// addProcess function
-func addProcess(id uint64, task chan Process) {
-	i := uint64(0)
+func Concurrently(processAdmin *ProcessAdmin, flag chan bool) {
 	for {
-		i = i + 1
-		task <- Process{Id: id, Task: i}
-		time.Sleep(time.Millisecond * 500)
-	}
-}
-
-// showProcess function
-func showProcess(task chan Process, show bool) {
-	for {
-		data := Process{}
-		data = <- task
-		if show {
-			fmt.Print("\nId ", data.Id, " : ", data.Task)
+		select {
+		case <-flag:
+			return
+		default:
+			processAdmin.ShowProcess()
+			time.Sleep(time.Millisecond * 500)
 		}
 	}
 }
 
-//// stopProcess function
-//func stopProcess(task chan Process) {
-//	var stop string
-//	fmt.Scanln(&stop)
-//	if stop == "s" {
-//		fmt.Println("msj",stop)
-//		return
-//	}
-//}
+// Process struct.
+type Process struct {
+	Id uint64
+	Task uint64
+	IsRunning bool
+}
 
-//// deleteProcess function
-//func deleteProcess(id uint64, task chan Process) {
-//	data := <- task
-//	if id == data.Id {
-//		fmt.Println("Hello")
-//		return
-//	}
-//}
+// Start function.
+func (process *Process) Start() {
+	process.Task = 0
+	process.IsRunning = true
+
+	for {
+		process.Task += 1
+		time.Sleep(time.Millisecond * 500)
+		if !process.IsRunning {
+			break
+		}
+	}
+}
+
+// Stop function.
+func (process *Process) Stop() {
+	process.IsRunning = false
+}
+
+// NewProcess function.
+func NewProcess(id uint64) *Process {
+	return &Process{
+		Id: id,
+	}
+}
+
+// ProcessAdmin function.
+type ProcessAdmin struct {
+	ProcessAdmin []*Process
+	ProcessLength uint64
+}
+
+// AddProcess function.
+func (processAdmin *ProcessAdmin) AddProcess(process *Process) {
+	processAdmin.ProcessAdmin = append(processAdmin.ProcessAdmin, process)
+	processAdmin.ProcessLength += 1
+}
+
+// KillProcess function.
+func (processAdmin *ProcessAdmin) KillProcess(processId uint64) bool {
+	var newProcess []*Process
+	deleted := false
+
+	for _, process := range processAdmin.ProcessAdmin {
+		if process.Id != processId {
+			newProcess = append(newProcess, process)
+		}
+
+		if process.Id == processId {
+			deleted = true
+			process.Stop()
+			processAdmin.ProcessLength -= 1
+		}
+	}
+
+	processAdmin.ProcessAdmin = newProcess
+	return deleted
+}
+
+// ShowProcess function.
+func (processAdmin *ProcessAdmin) ShowProcess() {
+	for _, process := range processAdmin.ProcessAdmin {
+		fmt.Print("\nId ", process.Id, " : ", process.Task)
+	}
+	fmt.Println()
+}
 
 // invalidOptions function.
 func invalidOptions() {
@@ -97,101 +163,9 @@ func invalidOptions() {
 }
 
 // exited function.
-func exited() {
+func (processAdmin *ProcessAdmin) exited() {
+	for _, process := range processAdmin.ProcessAdmin {
+		process.Stop()
+	}
 	fmt.Println("\n-System exited...")
 }
-
-//package main
-//
-//import (
-//"fmt"
-//"time"
-//)
-//
-//type Process struct {
-//	Id int
-//	Task int
-//}
-//
-//func addProcess(id int, task chan Process) {
-//	i := 0
-//	for {
-//		fmt.Println("Id", id, ":", i)
-//		i = i + 1
-//		task <- Process{Id: id, Task: i}
-//		time.Sleep(time.Millisecond * 500)
-//	}
-//}
-//
-//func showProcess(task chan Process) {
-//	for {
-//		<-task
-//	}
-//}
-//
-//func stopProcess() {
-//	var input string
-//	fmt.Scan(&input)
-//}
-//
-//func deleteProcess(id int, task chan Process) {
-//	data := <- task
-//	if id == data.Id {
-//		fmt.Println("Hello")
-//		close(task)
-//	}
-//}
-//
-//func main() {
-//	task := make(chan Process)
-//	stop := 1
-//
-//	for p := 0; p <= stop; p++ {
-//		go addProcess(p, task)
-//	}
-//
-//	go showProcess(task)
-//	go deleteProcess(1, task)
-//	stopProcess()
-//}
-
-//func main() {
-//	var (
-//		opc string
-//		id int64 = -1
-//		show = true
-//		condition = true
-//		task = make(chan Process)
-//	)
-//
-//	for exit := true; exit; exit = condition {
-//		fmt.Println("******* Process Manager *******")
-//		fmt.Println("[1] Add Process")
-//		fmt.Println("[2] Show Process")
-//		fmt.Println("[3] Delete Process")
-//		fmt.Println("[0] Exit System")
-//		fmt.Print("-Option: ")
-//		fmt.Scan(&opc)
-//
-//		if opc == "1" {
-//			id = id + 1
-//			go addProcess(uint64(id), task)
-//			fmt.Print("\n-Add process #", uint64(id), "\n\n")
-//			go showProcess(task, false)
-//		} else if opc == "2" {
-//			if show {
-//				go showProcess(task, show)
-//			} else {
-//				go showProcess(task, show)
-//			}
-//			show = false
-//		} else if opc == "3" {
-//			//	go deleteProcess(1, task)
-//		} else if opc == "0" {
-//			exited()
-//			condition = false
-//		} else {
-//			invalidOptions()
-//		}
-//	}
-//}
