@@ -21,8 +21,8 @@ func main() {
 	 	processIdDelete string
 
 		process []*Process
-		processAdmin = &ProcessAdmin {
-			ProcessAdmin: process,
+		processAdmin = &ProcessManager {
+			Processes: process,
 		}
 	)
 
@@ -45,10 +45,12 @@ func main() {
 				fmt.Print("\n-Add process #", processIdCreate, "\n\n")
 				break
 			case "2":
-				if processAdmin.ProcessLength != 0 {
+				if len(processAdmin.Processes) != 0 {
 					go Concurrently(processAdmin, flag)
 					scan.Scan()
 					flag <- true
+				} else {
+					fmt.Print("\n-No process!\n\n")
 				}
 				break
 			case "3":
@@ -57,7 +59,9 @@ func main() {
 				processIdDelete = scan.Text()
 				processId, _ = strconv.ParseUint(processIdDelete, 10, 64)
 				if processAdmin.KillProcess(processId) {
-					fmt.Print("-Process",processId,"removed successfully.\n\n")
+					fmt.Print("-Process ", processId, " removed successfully.\n\n")
+				} else {
+					fmt.Print("-No process found!\n\n")
 				}
 				processId = 0
 				break
@@ -67,18 +71,6 @@ func main() {
 				break
 			default:
 				invalidOptions()
-		}
-	}
-}
-
-func Concurrently(processAdmin *ProcessAdmin, flag chan bool) {
-	for {
-		select {
-		case <-flag:
-			return
-		default:
-			processAdmin.ShowProcess()
-			time.Sleep(time.Millisecond * 500)
 		}
 	}
 }
@@ -116,24 +108,22 @@ func NewProcess(id uint64) *Process {
 	}
 }
 
-// ProcessAdmin function.
-type ProcessAdmin struct {
-	ProcessAdmin []*Process
-	ProcessLength uint64
+// ProcessManager struct.
+type ProcessManager struct {
+	Processes []*Process
 }
 
 // AddProcess function.
-func (processAdmin *ProcessAdmin) AddProcess(process *Process) {
-	processAdmin.ProcessAdmin = append(processAdmin.ProcessAdmin, process)
-	processAdmin.ProcessLength += 1
+func (processAdmin *ProcessManager) AddProcess(process *Process) {
+	processAdmin.Processes = append(processAdmin.Processes, process)
 }
 
 // KillProcess function.
-func (processAdmin *ProcessAdmin) KillProcess(processId uint64) bool {
+func (processAdmin *ProcessManager) KillProcess(processId uint64) bool {
 	var newProcess []*Process
 	deleted := false
 
-	for _, process := range processAdmin.ProcessAdmin {
+	for _, process := range processAdmin.Processes {
 		if process.Id != processId {
 			newProcess = append(newProcess, process)
 		}
@@ -141,20 +131,32 @@ func (processAdmin *ProcessAdmin) KillProcess(processId uint64) bool {
 		if process.Id == processId {
 			deleted = true
 			process.Stop()
-			processAdmin.ProcessLength -= 1
 		}
 	}
 
-	processAdmin.ProcessAdmin = newProcess
+	processAdmin.Processes = newProcess
 	return deleted
 }
 
 // ShowProcess function.
-func (processAdmin *ProcessAdmin) ShowProcess() {
-	for _, process := range processAdmin.ProcessAdmin {
+func (processAdmin *ProcessManager) ShowProcess() {
+	for _, process := range processAdmin.Processes {
 		fmt.Print("\nId ", process.Id, " : ", process.Task)
 	}
 	fmt.Println()
+}
+
+// Concurrently function.
+func Concurrently(processAdmin *ProcessManager, flag chan bool) {
+	for {
+		select {
+		case <-flag:
+			return
+		default:
+			processAdmin.ShowProcess()
+			time.Sleep(time.Millisecond * 500)
+		}
+	}
 }
 
 // invalidOptions function.
@@ -163,8 +165,8 @@ func invalidOptions() {
 }
 
 // exited function.
-func (processAdmin *ProcessAdmin) exited() {
-	for _, process := range processAdmin.ProcessAdmin {
+func (processAdmin *ProcessManager) exited() {
+	for _, process := range processAdmin.Processes {
 		process.Stop()
 	}
 	fmt.Println("\n-System exited...")
